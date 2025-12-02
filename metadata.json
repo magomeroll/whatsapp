@@ -1,0 +1,5 @@
+{
+  "name": "Copia of AutoReply AI Bot WhatsApp",
+  "description": "A WhatsApp-style chatbot simulator powered by Google Gemini. Configure your AI persona, script, and rules, then test the auto-replies in a realistic chat interface.",
+  "requestFramePermissions": []
+}
