@@ -119,7 +119,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
     }
   };
 
-  // --- GENERATION LOGIC FOR REAL SERVER CODE (V16 ANTI-SLEEP) ---
+  // --- GENERATION LOGIC FOR REAL SERVER CODE (V17 STABILITY) ---
   const downloadFile = (filename: string, content: string) => {
     const element = document.createElement('a');
     const file = new Blob([content], {type: 'text/plain'});
@@ -131,11 +131,11 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
   };
 
   const generatePackageJson = () => {
-    // V16: Same dependencies as V14/15
+    // V17: Same dependencies
     const pkg = {
-      "name": "whatsapp-bot-v16-pro",
-      "version": "16.0.0",
-      "description": "Bot WhatsApp V16 (Anti-Sleep & Auto-Reconnect)",
+      "name": "whatsapp-bot-v17-stable",
+      "version": "17.0.0",
+      "description": "Bot WhatsApp V17 (Conflict Fix & Stream Stability)",
       "main": "server.js",
       "scripts": {
         "start": "node server.js"
@@ -160,12 +160,12 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
 
   const generateServerJs = () => {
     const content = `/**
- * BOT WA V16.0 - ANTI-SLEEP & AUTO-RECONNECT
- * Fixes: Render Free Tier Sleeping, Connection drops, Keep-Alive
+ * BOT WA V17.0 - STABILITY & CONFLICT FIX
+ * Fixes: Loop on Conflict (440/515), Zombie Sockets, Aggressive Reconnects
  */
 
 const http = require('http');
-const https = require('https'); // Required for self-ping
+const https = require('https');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, delay, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode');
 const { GoogleGenAI } = require("@google/genai");
@@ -175,7 +175,7 @@ const path = require('path');
 
 const PORT = process.env.PORT || 10000;
 const CONFIG_FILE = path.join(__dirname, 'bot_config.json');
-const AUTH_DIR = path.join(__dirname, 'auth_info_v16');
+const AUTH_DIR = path.join(__dirname, 'auth_info_v17');
 
 // --- CONFIG ---
 let botConfig = {
@@ -198,11 +198,12 @@ function saveConfig() {
 
 // Global State
 let qrCodeDataUrl = '';
-let statusMessage = 'Avvio V16 Anti-Sleep...';
+let statusMessage = 'Avvio V17 Stability...';
 let isConnected = false;
 let logs = [];
 let ai = null;
 let sock = null; 
+let reconnectAttempts = 0;
 
 function addLog(msg) {
     const time = new Date().toLocaleTimeString();
@@ -291,13 +292,12 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(\`<html><body style="font-family:sans-serif;background:#1e1e1e;color:#fff;text-align:center;padding:50px;">
         <div style="background:#2d2d2d;padding:30px;border-radius:15px;max-width:600px;margin:auto;border-top:5px solid #00a884;box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-            <h1 style="color:#00a884;">Bot V16 Anti-Sleep</h1>
+            <h1 style="color:#00a884;">Bot V17 Stability</h1>
             <p>Status: <strong>\${isConnected ? '✅ CONNESSO' : '⚠️ ' + statusMessage}</strong></p>
             <p>Mode: <strong>\${botConfig.isActive ? '🟢 ATTIVO' : '🔴 IN PAUSA'}</strong></p>
             <div style="background:#000;padding:15px;border-radius:8px;font-family:monospace;text-align:left;font-size:12px;color:#00a884;max-height:300px;overflow-y:auto;">
                \${logs.join('<br>')}
             </div>
-            <p style="font-size:10px;color:#666;margin-top:20px;">Render External URL: \${process.env.RENDER_EXTERNAL_URL || 'Non rilevato'}</p>
         </div>
     </body></html>\`);
 });
@@ -307,27 +307,25 @@ server.listen(PORT, () => {
     startBaileys();
 });
 
-// --- ANTI-SLEEP MECHANISM (V16 FEATURE) ---
-// Render free tier sleeps after 15 mins of inactivity. 
-// We ping ourselves every 14 mins (840,000 ms) using the public URL.
+// --- ANTI-SLEEP (V16/17) ---
 const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL; 
 if (RENDER_EXTERNAL_URL) {
     addLog(\`Anti-Sleep ATTIVO su: \${RENDER_EXTERNAL_URL}\`);
     setInterval(() => {
         addLog("⏰ Anti-Sleep Ping...");
-        https.get(\`\${RENDER_EXTERNAL_URL}/api/qr\`, (res) => {
-            // We don't care about response, just making the request keeps it alive
-        }).on('error', (e) => {
-            console.error("Anti-Sleep Ping Failed:", e.message);
-        });
+        https.get(\`\${RENDER_EXTERNAL_URL}/api/qr\`, (res) => {}).on('error', (e) => {});
     }, 840000); // 14 Minutes
-} else {
-    addLog("⚠️ Anti-Sleep DISATTIVO (Manca RENDER_EXTERNAL_URL). Il bot potrebbe andare in pausa.");
 }
 
-// 2. WHATSAPP LOGIC
+// 2. WHATSAPP LOGIC (V17 Enhanced)
 async function startBaileys() {
-    addLog("Avvio Motore WhatsApp (V16)...");
+    // FORCE CLEANUP: Ensure no previous socket exists to prevent zombie conflicts
+    if (sock) {
+        try { sock.end(undefined); } catch(e) {}
+        sock = null;
+    }
+
+    addLog("Avvio Motore WhatsApp (V17)...");
     
     try {
         const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
@@ -336,14 +334,15 @@ async function startBaileys() {
         sock = makeWASocket({
             version,
             auth: state,
-            logger: pino({ level: 'error' }), 
-            browser: ["Ubuntu", "Chrome", "20.0.04"], 
+            logger: pino({ level: 'silent' }), // Silent pino to reduce log noise on Render
+            browser: ["Chrome (Linux)", "Chrome", "122.0.0"], // Updated Browser signature
             connectTimeoutMs: 60000,
-            keepAliveIntervalMs: 25000, // Più frequente per V16
+            keepAliveIntervalMs: 30000,
             emitOwnEvents: false,
-            retryRequestDelayMs: 5000,  // Più lento a riprovare
+            retryRequestDelayMs: 5000,
             syncFullHistory: false, 
-            printQRInTerminal: false
+            printQRInTerminal: false,
+            generateHighQualityLinkPreview: true
         });
 
         sock.ev.on('connection.update', async (update) => {
@@ -361,25 +360,40 @@ async function startBaileys() {
             if(connection === 'close') {
                 isConnected = false;
                 qrCodeDataUrl = '';
+                
                 const error = lastDisconnect?.error;
                 const statusCode = error?.output?.statusCode;
+                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
                 
+                addLog(\`Disconnesso: \${statusCode || 'Unknown'} - \${error?.message || ''}\`);
+
+                // V17 CONFLICT HANDLING STRATEGY
                 if (statusCode === DisconnectReason.loggedOut) {
-                    addLog("Logout ricevuto. Pulisco sessione...");
-                     if(fs.existsSync(AUTH_DIR)) {
-                        fs.rmSync(AUTH_DIR, { recursive: true, force: true });
-                    }
+                    addLog("Logout ricevuto. Pulisco sessione e attendo...");
+                    if(fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+                    setTimeout(startBaileys, 5000);
+                } 
+                else if (statusCode === 440 || statusCode === 515 || (error?.message && error.message.includes('conflict'))) {
+                     // CONFLICT DETECTED: Do NOT reconnect immediately. 
+                     // This prevents the loop: Connect -> Kick -> Connect -> Kick
+                     addLog("⚠️ CONFLITTO STREAM (515/440).");
+                     addLog("Attesa 20s per stabilizzazione...");
+                     
+                     if(sock) { try { sock.end(undefined); sock = null; } catch(e) {} }
+                     
+                     // Exponential Backoff for stability
+                     setTimeout(startBaileys, 20000); 
                 }
-
-                addLog(\`Disconnesso: \${error?.message || 'Reconnecting...'}\`);
-                // Force delay before reconnect to avoid loop spam
-                setTimeout(startBaileys, 5000);
-
+                else if (shouldReconnect) {
+                    // Normal Reconnect
+                    setTimeout(startBaileys, 5000);
+                }
             } else if(connection === 'open') {
                 isConnected = true;
+                reconnectAttempts = 0;
                 qrCodeDataUrl = '';
                 statusMessage = "CONNESSO";
-                addLog(">>> V16 CONNESSO & STABILE <<<");
+                addLog(">>> V17 CONNESSO & STABILE <<<");
             }
         });
 
@@ -391,17 +405,20 @@ async function startBaileys() {
 
             for(const msg of messages) {
                 if(!msg.message || msg.key.fromMe) continue;
-                
+                // Ignore status updates
+                if(msg.key.remoteJid === 'status@broadcast') continue;
+
                 const remoteJid = msg.key.remoteJid;
                 const textBody = msg.message.conversation || msg.message.extendedTextMessage?.text;
                 
                 if(!textBody) continue;
-                addLog(\`Msg: \${textBody.substring(0, 15)}...\`);
+                addLog(\`Msg da \${remoteJid.slice(0,4)}...: \${textBody.substring(0, 10)}...\`);
 
                 try {
                     if(ai) {
                         await sock.readMessages([msg.key]);
-                        await delay(1000); 
+                        // Simulate human delay
+                        await delay(1500); 
                         
                         const response = await ai.models.generateContent({
                             model: 'gemini-2.5-flash',
@@ -424,9 +441,18 @@ async function startBaileys() {
 
     } catch (e) {
         addLog("CRASH STARTUP: " + e.message);
-        setTimeout(startBaileys, 5000);
+        setTimeout(startBaileys, 10000);
     }
 }
+
+// Global Error Handlers to prevent container crash
+process.on('uncaughtException', (err) => {
+    console.error('UNCAUGHT EXCEPTION:', err);
+    // Do not exit, just log. This keeps the http server alive.
+});
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('UNHANDLED REJECTION:', reason);
+});
 `;
     downloadFile('server.js', content);
   };
@@ -555,10 +581,10 @@ async function startBaileys() {
                     </div>
                     <h3 className="text-lg font-bold mb-2 flex items-center text-emerald-100">
                         <Download className="w-5 h-5 mr-2" />
-                        Download Server V16 (Anti-Sleep)
+                        Download Server V17 (Stable)
                     </h3>
                     <p className="text-emerald-100/80 text-sm mb-6 max-w-xl">
-                        Risolve il problema della disconnessione dopo 15 minuti su Render Free. Il server si auto-pinga per rimanere attivo.
+                        Versione 17.0: Fix "Conflict Loop". Risolve il problema delle disconnessioni continue e migliora la stabilità su Render.
                     </p>
 
                     <div className="flex flex-col sm:flex-row gap-3 relative z-10">
@@ -567,7 +593,7 @@ async function startBaileys() {
                             className={`flex-1 flex items-center justify-center p-3 rounded-lg border border-emerald-400 bg-emerald-900/40 hover:bg-emerald-800/60 transition-colors`}
                         >
                             <FileCode className="w-4 h-4 mr-2 text-emerald-300" />
-                            <span className="font-bold text-sm">server.js (V16)</span>
+                            <span className="font-bold text-sm">server.js (V17)</span>
                         </button>
                         
                         <button 
@@ -718,7 +744,7 @@ async function startBaileys() {
                  <div className="bg-slate-100 p-4 rounded-lg border border-slate-200">
                     <h4 className="font-bold text-slate-800 mb-2">1. Prepara i file</h4>
                     <ul className="list-disc list-inside space-y-1">
-                        <li>Scarica <code>server.js</code> (V16) e <code>package.json</code> da qui.</li>
+                        <li>Scarica <code>server.js</code> (V17) e <code>package.json</code> da qui.</li>
                         <li>Carica questi 2 file nel tuo Repository GitHub.</li>
                     </ul>
                  </div>

@@ -318,7 +318,7 @@ export const AccountDashboard: React.FC<AccountDashboardProps> = ({
                   )}
                   
                   <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                     <span className="text-xs text-slate-400">Node: v16.0 Anti-Sleep</span>
+                     <span className="text-xs text-slate-400">Node: v17.0 Stability</span>
                      <div className="flex space-x-2">
                         {acc.status === 'connected' && (
                             <button onClick={() => disconnect(acc)} title="Disconnetti Sessione Remota (Logout)" className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
