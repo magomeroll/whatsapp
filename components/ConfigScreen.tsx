@@ -77,18 +77,18 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
             })
         });
 
-        if (!response.ok) throw new Error(`Server Error: ${response.status}`);
+        if (!response.ok) throw new Error(`Server Error: \${response.status}`);
 
         const data = await response.json();
         if (data.success) {
             setIsDirty(false);
             setDeployStatus('success');
         } else {
-            throw new Error(data.message || "Errore sconosciuto dal server");
+            throw new Error(data.message || "Errore sconosciuto");
         }
     } catch (error: any) {
         setDeployStatus('error');
-        setErrorMessage(error.message || "Impossibile contattare il server.");
+        setErrorMessage(error.message || "Server non raggiungibile.");
     } finally {
         setIsDeploying(false);
     }
@@ -106,9 +106,9 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
 
   const generatePackageJson = () => {
     const pkg = {
-      "name": "whatsapp-bot-v17-stable",
-      "version": "17.2.0",
-      "description": "Bot WhatsApp V17.2 (Sniper Stability)",
+      "name": "whatsapp-bot-v17-immortal",
+      "version": "17.3.0",
+      "description": "Bot WhatsApp V17.3 Sniper (Anti-Sleep Mode)",
       "main": "server.js",
       "scripts": { "start": "node server.js" },
       "dependencies": {
@@ -124,10 +124,12 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
 
   const generateServerJs = () => {
     const content = `/**
- * BOT WA V17.2 - SNIPER STABILITY (Fix Scansione)
+ * BOT WA V17.3 - SNIPER IMMORTAL
  * Ottimizzato per Render.com Free Tier.
+ * Fix: Anti-Sleep (Self-Ping) + Reconnect Pro.
  */
 const http = require('http');
+const https = require('https');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, delay, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode');
 const { GoogleGenAI } = require("@google/genai");
@@ -138,6 +140,7 @@ const path = require('path');
 const PORT = process.env.PORT || 10000;
 const AUTH_DIR = path.join(__dirname, 'auth_info_v17');
 const CONFIG_FILE = path.join(__dirname, 'bot_config.json');
+const SERVER_URL = process.env.RENDER_EXTERNAL_URL || ''; 
 
 let botConfig = {
     apiKey: process.env.API_KEY,
@@ -156,7 +159,7 @@ if (fs.existsSync(CONFIG_FILE)) {
 function saveConfig() { fs.writeFileSync(CONFIG_FILE, JSON.stringify(botConfig, null, 2)); }
 
 let qrCodeDataUrl = '';
-let statusMessage = 'Avvio V17.2 Sniper...';
+let statusMessage = 'Inizializzazione V17.3...';
 let isConnected = false;
 let logs = [];
 let ai = null;
@@ -165,8 +168,21 @@ let sock = null;
 function addLog(msg) {
     const time = new Date().toLocaleTimeString();
     logs.unshift(\`[\${time}] \${msg}\`);
-    if(logs.length > 50) logs.pop();
+    if(logs.length > 30) logs.pop();
     console.log(msg);
+}
+
+// SNIPER FIX: Anti-Sleep System
+function keepAlive() {
+    if (!SERVER_URL) return;
+    setInterval(() => {
+        addLog("Pinging self to stay awake...");
+        https.get(SERVER_URL, (res) => {
+            // Self-ping ok
+        }).on('error', (e) => {
+            // Silenzioso
+        });
+    }, 10 * 60 * 1000); // Ogni 10 minuti
 }
 
 function initAI() {
@@ -207,7 +223,7 @@ const server = http.createServer((req, res) => {
                 if(data.isActive !== undefined) botConfig.isActive = data.isActive; 
                 saveConfig();
                 initAI();
-                addLog("Config aggiornata");
+                addLog("Cloud Sync: OK");
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: true }));
             } catch(e) { res.writeHead(400); res.end(); }
@@ -217,26 +233,24 @@ const server = http.createServer((req, res) => {
 
     if (req.url === '/api/logout' && req.method === 'POST') {
         try {
-            addLog("Esecuzione DEEP RESET sessione...");
+            addLog("DEEP RESET richiesto...");
             if(sock) { sock.end(undefined); sock = null; }
-            if(fs.existsSync(AUTH_DIR)) {
-                fs.rmSync(AUTH_DIR, { recursive: true, force: true });
-                addLog("Cartella sessione eliminata.");
-            }
+            if(fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true });
             isConnected = false; qrCodeDataUrl = '';
             setTimeout(startBaileys, 3000);
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: true }));
-        } catch(e) { addLog("Errore Logout: " + e.message); res.writeHead(500); res.end(); }
+        } catch(e) { res.writeHead(500); res.end(); }
         return;
     }
 
     res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(\`<h1>Bot V17.2 Sniper</h1><p>Status: \${isConnected ? 'CONNESSO' : statusMessage}</p>\`);
+    res.end(\`<h1>Bot V17.3 Sniper</h1><p>Status: \${isConnected ? 'ONLINE' : 'OFFLINE/QR'}</p>\`);
 });
 
 server.listen(PORT, () => {
     addLog(\`WEB SERVER OK PORT:\${PORT}\`);
+    keepAlive();
     startBaileys();
 });
 
@@ -251,8 +265,8 @@ async function startBaileys() {
             version,
             auth: state,
             logger: pino({ level: 'silent' }),
-            // SNIPER: Cambiata identità browser per risolvere errore scansione
-            browser: ["Windows", "Chrome", "11.0.0"],
+            // Ripristino Browser ID V17 (Stabile)
+            browser: ["Chrome (Linux)", "Chrome", "122.0.0"],
             connectTimeoutMs: 60000,
             printQRInTerminal: false
         });
@@ -262,27 +276,26 @@ async function startBaileys() {
             if(qr) {
                 isConnected = false;
                 qrcode.toDataURL(qr, (err, url) => { if(!err) qrCodeDataUrl = url; });
-                statusMessage = "ATTESA SCANSIONE";
+                statusMessage = "WAITING SCAN";
             }
             if(connection === 'close') {
                 const statusCode = lastDisconnect?.error?.output?.statusCode;
-                addLog(\`Chiusura Codice: \${statusCode}\`);
+                addLog(\`Disconnected: \${statusCode}\`);
                 
-                // GESTIONE CONFLITTO (440) - SNIPER V17.2
+                // Sniper V17.3: Delay intelligente
                 if (statusCode === 440 || statusCode === 515 || lastDisconnect?.error?.message?.includes('conflict')) {
-                     addLog("⚠️ Conflitto sessione. Pulizia automatica e pausa 15s...");
-                     if(sock) { try { sock.end(undefined); sock = null; } catch(e) {} }
-                     setTimeout(startBaileys, 15000); 
+                     addLog("Conflitto. Pausa 20s...");
+                     setTimeout(startBaileys, 20000); 
                 } else if (statusCode !== DisconnectReason.loggedOut) {
                     setTimeout(startBaileys, 5000);
                 } else {
-                    addLog("Sloggato. Pulizia dati sessione...");
+                    addLog("Logout. Resetting...");
                     if(fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true });
                     setTimeout(startBaileys, 5000);
                 }
             } else if(connection === 'open') {
-                isConnected = true; qrCodeDataUrl = ''; statusMessage = "CONNESSO";
-                addLog(">>> BOT ONLINE <<<");
+                isConnected = true; qrCodeDataUrl = ''; statusMessage = "CONNECTED";
+                addLog(">>> BOT ONLINE (Immortal Mode) <<<");
             }
         });
 
@@ -304,11 +317,11 @@ async function startBaileys() {
                         config: { systemInstruction: botConfig.systemInstruction, temperature: botConfig.temperature }
                     });
                     await sock.sendMessage(remoteJid, { text: response.text }, { quoted: msg });
-                } catch (e) { addLog("Errore AI: " + e.message); }
+                } catch (e) { addLog("AI Error: " + e.message); }
             }
         });
     } catch (e) {
-        addLog("Errore: " + e.message);
+        addLog("Startup Error: " + e.message);
         setTimeout(startBaileys, 10000);
     }
 }
@@ -326,7 +339,7 @@ async function startBaileys() {
                 onClick={(e) => { e.stopPropagation(); setIsDropdownOpen(!isDropdownOpen); }}
                 className="flex items-center space-x-3 bg-white border border-slate-200 hover:border-slate-300 shadow-sm rounded-xl p-2 pr-4 transition-all min-w-[320px]"
              >
-                <div className={`w-10 h-10 rounded-lg ${account.avatarColor} flex items-center justify-center text-white font-bold text-lg shadow-sm`}>
+                <div className={`w-10 h-10 rounded-lg \${account.avatarColor} flex items-center justify-center text-white font-bold text-lg shadow-sm`}>
                     {account.name.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 text-left">
@@ -336,7 +349,7 @@ async function startBaileys() {
                         {account.status === 'connected' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>}
                     </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform \${isDropdownOpen ? 'rotate-180' : ''}`} />
              </button>
 
              {isDropdownOpen && (
@@ -346,9 +359,9 @@ async function startBaileys() {
                       <button
                         key={acc.id}
                         onClick={() => onSwitchAccount(acc.id)}
-                        className={`w-full flex items-center p-2 rounded-lg transition-colors ${acc.id === account.id ? 'bg-emerald-50 text-[#00a884]' : 'hover:bg-slate-50 text-slate-700'}`}
+                        className={`w-full flex items-center p-2 rounded-lg transition-colors \${acc.id === account.id ? 'bg-emerald-50 text-[#00a884]' : 'hover:bg-slate-50 text-slate-700'}`}
                       >
-                         <div className={`w-8 h-8 rounded-md ${acc.avatarColor} flex items-center justify-center text-white font-bold text-sm mr-3`}>
+                         <div className={`w-8 h-8 rounded-md \${acc.avatarColor} flex items-center justify-center text-white font-bold text-sm mr-3`}>
                             {acc.name.charAt(0).toUpperCase()}
                          </div>
                          <div className="flex-1 text-left">
@@ -380,8 +393,8 @@ async function startBaileys() {
                     </div>
                     <div className="flex items-center space-x-3">
                         <div className="flex items-center space-x-2 bg-white border border-slate-200 rounded-lg p-1">
-                            <button onClick={() => handleIsActiveChange(true)} className={`px-2 py-1 rounded text-xs font-bold transition-colors ${isActive ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>ON</button>
-                            <button onClick={() => handleIsActiveChange(false)} className={`px-2 py-1 rounded text-xs font-bold transition-colors ${!isActive ? 'bg-slate-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>OFF</button>
+                            <button onClick={() => handleIsActiveChange(true)} className={`px-2 py-1 rounded text-xs font-bold transition-colors \${isActive ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>ON</button>
+                            <button onClick={() => handleIsActiveChange(false)} className={`px-2 py-1 rounded text-xs font-bold transition-colors \${!isActive ? 'bg-slate-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>OFF</button>
                         </div>
                         <button onClick={() => confirm("Ripristinare prompt?") && setLocalConfig(prev => ({...prev, systemInstruction: DEFAULT_INSTRUCTION}))} className="text-xs text-slate-500 hover:text-[#00a884] font-medium px-2 py-1 rounded">Reset</button>
                     </div>
@@ -395,14 +408,14 @@ async function startBaileys() {
 
                 <div className="bg-gradient-to-br from-[#00a884] to-emerald-900 rounded-xl shadow-lg border border-emerald-700 p-6 text-white relative overflow-hidden">
                     <h3 className="text-lg font-bold mb-2 flex items-center text-emerald-100">
-                        <Download className="w-5 h-5 mr-2" /> Download Server V17.2 (Stable Sniper)
+                        <Zap className="w-5 h-5 mr-2" /> Download Server V17.3 (Sniper Immortal)
                     </h3>
                     <p className="text-emerald-100/80 text-sm mb-6 max-w-xl">
-                        Versione 17.2: Risolve l'errore "impossibile collegare" durante la scansione e ottimizza la stabilità su Render Free.
+                        Versione 17.3: Include il sistema Anti-Sleep per Render Free. Il bot non andrà più a dormire dopo 15 minuti.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-3 relative z-10">
                         <button onClick={generateServerJs} className="flex-1 flex items-center justify-center p-3 rounded-lg border border-emerald-400 bg-emerald-900/40 hover:bg-emerald-800/60 transition-colors">
-                            <FileCode className="w-4 h-4 mr-2 text-emerald-300" /> <span className="font-bold text-sm">server.js (V17.2)</span>
+                            <FileCode className="w-4 h-4 mr-2 text-emerald-300" /> <span className="font-bold text-sm">server.js (V17.3)</span>
                         </button>
                         <button onClick={generatePackageJson} className="flex-1 flex items-center justify-center p-3 rounded-lg border border-slate-600 bg-slate-700 hover:bg-slate-600 transition-colors">
                             <FileJson className="w-4 h-4 mr-2 text-yellow-400" /> <span className="font-bold text-sm">package.json</span>
@@ -422,7 +435,7 @@ async function startBaileys() {
                             onChange={(e) => handleUrlChange(e.target.value)}
                             className="flex-1 px-4 py-2 border rounded-lg text-sm border-slate-300"
                         />
-                        <button onClick={handleDeploy} disabled={isDeploying} className={`px-6 py-2 rounded-lg font-bold text-white flex items-center ${isDirty ? 'bg-emerald-600 hover:bg-emerald-700 shadow-md' : 'bg-slate-400 cursor-not-allowed'}`}>
+                        <button onClick={handleDeploy} disabled={isDeploying} className={`px-6 py-2 rounded-lg font-bold text-white flex items-center \${isDirty ? 'bg-emerald-600 hover:bg-emerald-700 shadow-md' : 'bg-slate-400 cursor-not-allowed'}`}>
                             {isDeploying ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : <Save className="w-4 h-4 mr-2"/>} AGGIORNA SERVER
                         </button>
                     </div>
