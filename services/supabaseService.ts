@@ -1,4 +1,3 @@
-
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { BotAccount, SupabaseConfig } from '../types';
 import { SUPABASE_DEFAULTS } from '../constants';
@@ -23,7 +22,7 @@ export const supabaseService = {
           }
       }
 
-      // Fallback to Constants / Env Vars
+      // Fallback to Constants
       if (!targetUrl || !targetKey) {
           targetUrl = SUPABASE_DEFAULTS.url;
           targetKey = SUPABASE_DEFAULTS.key;
@@ -50,10 +49,11 @@ export const supabaseService = {
 
   isConfigured: () => !!supabase,
 
-  // --- CRUD OPERATIONS ---
-
   loadNodes: async (userToken: string): Promise<BotAccount[]> => {
-    if (!supabase) throw new Error("Database non connesso");
+    if (!supabase) {
+      supabaseService.init();
+      if (!supabase) throw new Error("Database non inizializzato");
+    }
     
     const { data, error } = await supabase
       .from('bot_nodes')
@@ -61,9 +61,11 @@ export const supabaseService = {
       .eq('user_token', userToken);
       
     if (error) {
-      console.error("Load Error", error);
-      throw error;
+      console.error("Supabase load error:", error.message);
+      throw new Error(error.message); // Sniper: lanciamo l'errore invece di gestire array vuoti qui
     }
+
+    if (!data) return [];
 
     return data.map((row: any) => {
         const acc = row.data;
