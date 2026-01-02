@@ -77,7 +77,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
             })
         });
 
-        if (!response.ok) throw new Error(`Server Error: \${response.status}`);
+        if (!response.ok) throw new Error(`Server Error: ${response.status}`);
 
         const data = await response.json();
         if (data.success) {
@@ -339,7 +339,7 @@ async function startBaileys() {
                 onClick={(e) => { e.stopPropagation(); setIsDropdownOpen(!isDropdownOpen); }}
                 className="flex items-center space-x-3 bg-white border border-slate-200 hover:border-slate-300 shadow-sm rounded-xl p-2 pr-4 transition-all min-w-[320px]"
              >
-                <div className={`w-10 h-10 rounded-lg \${account.avatarColor} flex items-center justify-center text-white font-bold text-lg shadow-sm`}>
+                <div className={`w-10 h-10 rounded-lg ${account.avatarColor} flex items-center justify-center text-white font-bold text-lg shadow-sm`}>
                     {account.name.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 text-left">
@@ -349,7 +349,7 @@ async function startBaileys() {
                         {account.status === 'connected' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>}
                     </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform \${isDropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
              </button>
 
              {isDropdownOpen && (
@@ -359,9 +359,9 @@ async function startBaileys() {
                       <button
                         key={acc.id}
                         onClick={() => onSwitchAccount(acc.id)}
-                        className={`w-full flex items-center p-2 rounded-lg transition-colors \${acc.id === account.id ? 'bg-emerald-50 text-[#00a884]' : 'hover:bg-slate-50 text-slate-700'}`}
+                        className={`w-full flex items-center p-2 rounded-lg transition-colors ${acc.id === account.id ? 'bg-emerald-50 text-[#00a884]' : 'hover:bg-slate-50 text-slate-700'}`}
                       >
-                         <div className={`w-8 h-8 rounded-md \${acc.avatarColor} flex items-center justify-center text-white font-bold text-sm mr-3`}>
+                         <div className={`w-8 h-8 rounded-md ${acc.avatarColor} flex items-center justify-center text-white font-bold text-sm mr-3`}>
                             {acc.name.charAt(0).toUpperCase()}
                          </div>
                          <div className="flex-1 text-left">
@@ -393,8 +393,8 @@ async function startBaileys() {
                     </div>
                     <div className="flex items-center space-x-3">
                         <div className="flex items-center space-x-2 bg-white border border-slate-200 rounded-lg p-1">
-                            <button onClick={() => handleIsActiveChange(true)} className={`px-2 py-1 rounded text-xs font-bold transition-colors \${isActive ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>ON</button>
-                            <button onClick={() => handleIsActiveChange(false)} className={`px-2 py-1 rounded text-xs font-bold transition-colors \${!isActive ? 'bg-slate-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>OFF</button>
+                            <button onClick={() => handleIsActiveChange(true)} className={`px-2 py-1 rounded text-xs font-bold transition-colors ${isActive ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>ON</button>
+                            <button onClick={() => handleIsActiveChange(false)} className={`px-2 py-1 rounded text-xs font-bold transition-colors ${!isActive ? 'bg-slate-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>OFF</button>
                         </div>
                         <button onClick={() => confirm("Ripristinare prompt?") && setLocalConfig(prev => ({...prev, systemInstruction: DEFAULT_INSTRUCTION}))} className="text-xs text-slate-500 hover:text-[#00a884] font-medium px-2 py-1 rounded">Reset</button>
                     </div>
@@ -435,7 +435,7 @@ async function startBaileys() {
                             onChange={(e) => handleUrlChange(e.target.value)}
                             className="flex-1 px-4 py-2 border rounded-lg text-sm border-slate-300"
                         />
-                        <button onClick={handleDeploy} disabled={isDeploying} className={`px-6 py-2 rounded-lg font-bold text-white flex items-center \${isDirty ? 'bg-emerald-600 hover:bg-emerald-700 shadow-md' : 'bg-slate-400 cursor-not-allowed'}`}>
+                        <button onClick={handleDeploy} disabled={isDeploying} className={`px-6 py-2 rounded-lg font-bold text-white flex items-center ${isDirty ? 'bg-emerald-600 hover:bg-emerald-700 shadow-md' : 'bg-slate-400 cursor-not-allowed'}`}>
                             {isDeploying ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : <Save className="w-4 h-4 mr-2"/>} AGGIORNA SERVER
                         </button>
                     </div>
