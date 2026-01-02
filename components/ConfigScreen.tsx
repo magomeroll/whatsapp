@@ -10,7 +10,6 @@ interface ConfigScreenProps {
 }
 
 export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts, onSwitchAccount, onSave }) => {
-  // Local state to handle form edits before saving
   const [localConfig, setLocalConfig] = useState(account.config);
   const [isActive, setIsActive] = useState(account.isActive);
   const [serverUrl, setServerUrl] = useState(localStorage.getItem(`server_url_${account.id}`) || '');
@@ -18,12 +17,10 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showRenderGuide, setShowRenderGuide] = useState(false);
   
-  // Real deployment states
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployStatus, setDeployStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
-  // When switching accounts, update local state
   useEffect(() => {
     setLocalConfig(account.config);
     setIsActive(account.isActive);
@@ -49,16 +46,13 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
       localStorage.setItem(`server_url_${account.id}`, val);
   };
 
-  // --- REAL DEPLOYMENT LOGIC (SYNC CONFIG & ACTIVE STATE) ---
   const handleDeploy = async () => {
-    // Save locally first to update UI
     onSave({
         ...account,
         isActive,
         config: localConfig
     });
     
-    // If no server URL is provided, we treat it as a "Local Save" for the simulator
     if (!serverUrl) {
         setIsDirty(false);
         setDeployStatus('success');
@@ -66,20 +60,16 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
         return;
     }
 
-    // REAL SERVER SYNC
     setIsDeploying(true);
     setErrorMessage('');
     
     try {
-        // Clean URL
         const cleanUrl = serverUrl.replace(/\/$/, "");
         const endpoint = `${cleanUrl}/api/update-config`;
 
         const response = await fetch(endpoint, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 systemInstruction: localConfig.systemInstruction,
                 temperature: localConfig.temperature,
@@ -87,9 +77,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
             })
         });
 
-        if (!response.ok) {
-            throw new Error(`Server Error: ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`Server Error: ${response.status}`);
 
         const data = await response.json();
         if (data.success) {
@@ -98,27 +86,14 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
         } else {
             throw new Error(data.message || "Errore sconosciuto dal server");
         }
-
     } catch (error: any) {
-        console.error("Deploy failed:", error);
         setDeployStatus('error');
-        setErrorMessage(error.message || "Impossibile contattare il server. Verifica l'URL.");
+        setErrorMessage(error.message || "Impossibile contattare il server.");
     } finally {
         setIsDeploying(false);
     }
   };
 
-  const handleReset = () => {
-    if(confirm("Sei sicuro di voler ripristinare il prompt originale?")) {
-      setLocalConfig({
-        ...localConfig,
-        systemInstruction: DEFAULT_INSTRUCTION
-      });
-      setIsDirty(true);
-    }
-  };
-
-  // --- GENERATION LOGIC FOR REAL SERVER CODE (V17.1 SNIPER) ---
   const downloadFile = (filename: string, content: string) => {
     const element = document.createElement('a');
     const file = new Blob([content], {type: 'text/plain'});
@@ -132,34 +107,27 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
   const generatePackageJson = () => {
     const pkg = {
       "name": "whatsapp-bot-v17-stable",
-      "version": "17.1.0",
-      "description": "Bot WhatsApp V17.1 (Sniper Core - Conflict Fix)",
+      "version": "17.2.0",
+      "description": "Bot WhatsApp V17.2 (Sniper Stability)",
       "main": "server.js",
-      "scripts": {
-        "start": "node server.js"
-      },
+      "scripts": { "start": "node server.js" },
       "dependencies": {
         "@whiskeysockets/baileys": "^6.6.0",
         "qrcode": "^1.5.3", 
         "@google/genai": "^1.30.0",
         "pino": "^7.0.0"
       },
-      "engines": {
-        "node": ">=20.0.0 <21.0.0"
-      }
+      "engines": { "node": ">=20.0.0 <21.0.0" }
     };
     downloadFile('package.json', JSON.stringify(pkg, null, 2));
   };
 
   const generateServerJs = () => {
     const content = `/**
- * BOT WA V17.1 - SNIPER STABILITY
+ * BOT WA V17.2 - SNIPER STABILITY (Fix Scansione)
  * Ottimizzato per Render.com Free Tier.
- * Fix: Previene il loop di riconnessione aggressiva (errore 440/515).
  */
-
 const http = require('http');
-const https = require('https');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, delay, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode');
 const { GoogleGenAI } = require("@google/genai");
@@ -168,10 +136,9 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = process.env.PORT || 10000;
-const CONFIG_FILE = path.join(__dirname, 'bot_config.json');
 const AUTH_DIR = path.join(__dirname, 'auth_info_v17');
+const CONFIG_FILE = path.join(__dirname, 'bot_config.json');
 
-// --- CONFIG ---
 let botConfig = {
     apiKey: process.env.API_KEY,
     systemInstruction: \`${localConfig.systemInstruction.replace(/`/g, '\\`').replace(/\n/g, '\\n')}\`,
@@ -186,13 +153,10 @@ if (fs.existsSync(CONFIG_FILE)) {
     } catch(e) {}
 }
 
-function saveConfig() {
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(botConfig, null, 2));
-}
+function saveConfig() { fs.writeFileSync(CONFIG_FILE, JSON.stringify(botConfig, null, 2)); }
 
-// Global State
 let qrCodeDataUrl = '';
-let statusMessage = 'Avvio V17.1 Sniper...';
+let statusMessage = 'Avvio V17.2 Sniper...';
 let isConnected = false;
 let logs = [];
 let ai = null;
@@ -208,7 +172,6 @@ function addLog(msg) {
 function initAI() {
     if(botConfig.apiKey) {
         try {
-            // Sniper: Corretto utilizzo del costruttore GoogleGenAI
             ai = new GoogleGenAI({ apiKey: botConfig.apiKey });
             addLog("AI: Pronta");
         } catch(e) { addLog("AI Errore: " + e.message); }
@@ -216,12 +179,10 @@ function initAI() {
 }
 initAI();
 
-// 1. HTTP SERVER
 const server = http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
     if (req.url === '/api/qr') {
@@ -246,7 +207,7 @@ const server = http.createServer((req, res) => {
                 if(data.isActive !== undefined) botConfig.isActive = data.isActive; 
                 saveConfig();
                 initAI();
-                addLog(\`Config aggiornata via Cloud\`);
+                addLog("Config aggiornata");
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: true }));
             } catch(e) { res.writeHead(400); res.end(); }
@@ -256,18 +217,22 @@ const server = http.createServer((req, res) => {
 
     if (req.url === '/api/logout' && req.method === 'POST') {
         try {
+            addLog("Esecuzione DEEP RESET sessione...");
             if(sock) { sock.end(undefined); sock = null; }
-            if(fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+            if(fs.existsSync(AUTH_DIR)) {
+                fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+                addLog("Cartella sessione eliminata.");
+            }
             isConnected = false; qrCodeDataUrl = '';
             setTimeout(startBaileys, 3000);
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: true }));
-        } catch(e) { res.writeHead(500); res.end(); }
+        } catch(e) { addLog("Errore Logout: " + e.message); res.writeHead(500); res.end(); }
         return;
     }
 
     res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(\`<h1>Bot V17.1 Stable</h1><p>Status: \${isConnected ? 'CONNESSO' : statusMessage}</p>\`);
+    res.end(\`<h1>Bot V17.2 Sniper</h1><p>Status: \${isConnected ? 'CONNESSO' : statusMessage}</p>\`);
 });
 
 server.listen(PORT, () => {
@@ -275,10 +240,8 @@ server.listen(PORT, () => {
     startBaileys();
 });
 
-// 2. WHATSAPP LOGIC (V17.1 Enhanced)
 async function startBaileys() {
     if (sock) { try { sock.end(undefined); } catch(e) {} sock = null; }
-    addLog("Inizializzazione Baileys...");
     
     try {
         const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
@@ -288,35 +251,32 @@ async function startBaileys() {
             version,
             auth: state,
             logger: pino({ level: 'silent' }),
-            browser: ["Chrome (Linux)", "Chrome", "122.0.0"],
+            // SNIPER: Cambiata identità browser per risolvere errore scansione
+            browser: ["Windows", "Chrome", "11.0.0"],
             connectTimeoutMs: 60000,
             printQRInTerminal: false
         });
 
         sock.ev.on('connection.update', async (update) => {
             const { connection, lastDisconnect, qr } = update;
-            
             if(qr) {
                 isConnected = false;
                 qrcode.toDataURL(qr, (err, url) => { if(!err) qrCodeDataUrl = url; });
                 statusMessage = "ATTESA SCANSIONE";
             }
-
             if(connection === 'close') {
-                isConnected = false;
-                qrCodeDataUrl = '';
                 const statusCode = lastDisconnect?.error?.output?.statusCode;
                 addLog(\`Chiusura Codice: \${statusCode}\`);
-
-                // SNIPER: Gestione specifica codici critici su Render
+                
+                // GESTIONE CONFLITTO (440) - SNIPER V17.2
                 if (statusCode === 440 || statusCode === 515 || lastDisconnect?.error?.message?.includes('conflict')) {
-                     addLog("⚠️ CONFLITTO RILEVATO. Pausa 15s per stabilità...");
+                     addLog("⚠️ Conflitto sessione. Pulizia automatica e pausa 15s...");
                      if(sock) { try { sock.end(undefined); sock = null; } catch(e) {} }
                      setTimeout(startBaileys, 15000); 
                 } else if (statusCode !== DisconnectReason.loggedOut) {
                     setTimeout(startBaileys, 5000);
                 } else {
-                    addLog("Logout. Pulizia...");
+                    addLog("Sloggato. Pulizia dati sessione...");
                     if(fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true });
                     setTimeout(startBaileys, 5000);
                 }
@@ -338,7 +298,6 @@ async function startBaileys() {
                 try {
                     await sock.readMessages([msg.key]);
                     await delay(1000);
-                    // Sniper: Uso del modello corretto gemini-3-flash-preview
                     const response = await ai.models.generateContent({
                         model: 'gemini-3-flash-preview',
                         contents: textBody,
@@ -348,7 +307,6 @@ async function startBaileys() {
                 } catch (e) { addLog("Errore AI: " + e.message); }
             }
         });
-
     } catch (e) {
         addLog("Errore: " + e.message);
         setTimeout(startBaileys, 10000);
@@ -361,8 +319,6 @@ async function startBaileys() {
   return (
     <div className="flex-1 bg-slate-50 h-full overflow-y-auto p-4 md:p-8" onClick={() => setIsDropdownOpen(false)}>
       <div className="max-w-6xl mx-auto">
-        
-        {/* Header with Account Switcher */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div className="relative z-20">
              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Istanza Server</label>
@@ -383,9 +339,8 @@ async function startBaileys() {
                 <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
              </button>
 
-             {/* Account Dropdown */}
              {isDropdownOpen && (
-               <div className="absolute top-full left-0 mt-2 w-full min-w-[320px] bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-100 z-50">
+               <div className="absolute top-full left-0 mt-2 w-full min-w-[320px] bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
                   <div className="p-2 space-y-1">
                     {allAccounts.map(acc => (
                       <button
@@ -410,140 +365,75 @@ async function startBaileys() {
                </div>
              )}
           </div>
-          
-          <div className="flex items-center space-x-3">
-             <button
-                onClick={() => setShowRenderGuide(true)}
-                className="flex items-center px-3 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors shadow-sm"
-             >
-                <Cloud className="w-3.5 h-3.5 mr-2" />
-                Guida Render.com
-             </button>
-          </div>
+          <button onClick={() => setShowRenderGuide(true)} className="flex items-center px-3 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors shadow-sm">
+             <Cloud className="w-3.5 h-3.5 mr-2" /> Guida Render.com
+          </button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            {/* Left Column: Editor */}
             <div className="lg:col-span-2 space-y-6">
-                
-                {/* Script Editor Card */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[500px]">
                   <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <div className="flex items-center space-x-2">
                         <Cloud className="w-4 h-4 text-slate-400" />
                         <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide">Istruzioni Bot (Prompt)</h3>
                     </div>
-                    
                     <div className="flex items-center space-x-3">
                         <div className="flex items-center space-x-2 bg-white border border-slate-200 rounded-lg p-1">
-                            <button
-                                onClick={() => handleIsActiveChange(true)}
-                                className={`px-2 py-1 rounded text-xs font-bold transition-colors ${isActive ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                            >
-                                ON
-                            </button>
-                            <button
-                                onClick={() => handleIsActiveChange(false)}
-                                className={`px-2 py-1 rounded text-xs font-bold transition-colors ${!isActive ? 'bg-slate-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                            >
-                                OFF
-                            </button>
+                            <button onClick={() => handleIsActiveChange(true)} className={`px-2 py-1 rounded text-xs font-bold transition-colors ${isActive ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>ON</button>
+                            <button onClick={() => handleIsActiveChange(false)} className={`px-2 py-1 rounded text-xs font-bold transition-colors ${!isActive ? 'bg-slate-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>OFF</button>
                         </div>
-                        
-                        <button 
-                        onClick={handleReset}
-                        className="text-xs text-slate-500 hover:text-[#00a884] flex items-center transition-colors font-medium px-2 py-1 rounded hover:bg-slate-100"
-                        >
-                        <RefreshCw className="w-3 h-3 mr-1.5" />
-                        Reset
-                        </button>
+                        <button onClick={() => confirm("Ripristinare prompt?") && setLocalConfig(prev => ({...prev, systemInstruction: DEFAULT_INSTRUCTION}))} className="text-xs text-slate-500 hover:text-[#00a884] font-medium px-2 py-1 rounded">Reset</button>
                     </div>
                   </div>
-                  
                   <textarea
                     value={localConfig.systemInstruction}
                     onChange={(e) => handleConfigChange('systemInstruction', e.target.value)}
                     className="flex-1 w-full px-6 py-5 resize-none outline-none text-slate-700 font-mono text-sm leading-relaxed"
-                    placeholder="Scrivi qui le istruzioni per il tuo bot..."
                   />
-
-                  <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-400 flex justify-between">
-                    <span>Supporta Markdown e Emoji</span>
-                    <span>{localConfig.systemInstruction.length} chars</span>
-                  </div>
                 </div>
 
-                {/* Export Real Bot Section */}
                 <div className="bg-gradient-to-br from-[#00a884] to-emerald-900 rounded-xl shadow-lg border border-emerald-700 p-6 text-white relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-8 opacity-10">
-                        <Github className="w-32 h-32" />
-                    </div>
                     <h3 className="text-lg font-bold mb-2 flex items-center text-emerald-100">
-                        <Download className="w-5 h-5 mr-2" />
-                        Download Server V17.1 (Sniper)
+                        <Download className="w-5 h-5 mr-2" /> Download Server V17.2 (Stable Sniper)
                     </h3>
                     <p className="text-emerald-100/80 text-sm mb-6 max-w-xl">
-                        Versione 17.1: Sniper Stability. Ottimizzata per Render Free Tier per prevenire sospensioni dell'account causate da loop di crash.
+                        Versione 17.2: Risolve l'errore "impossibile collegare" durante la scansione e ottimizza la stabilità su Render Free.
                     </p>
-
                     <div className="flex flex-col sm:flex-row gap-3 relative z-10">
-                        <button 
-                            onClick={generateServerJs}
-                            className={`flex-1 flex items-center justify-center p-3 rounded-lg border border-emerald-400 bg-emerald-900/40 hover:bg-emerald-800/60 transition-colors`}
-                        >
-                            <FileCode className="w-4 h-4 mr-2 text-emerald-300" />
-                            <span className="font-bold text-sm">server.js (V17.1)</span>
+                        <button onClick={generateServerJs} className="flex-1 flex items-center justify-center p-3 rounded-lg border border-emerald-400 bg-emerald-900/40 hover:bg-emerald-800/60 transition-colors">
+                            <FileCode className="w-4 h-4 mr-2 text-emerald-300" /> <span className="font-bold text-sm">server.js (V17.2)</span>
                         </button>
-                        
-                        <button 
-                             onClick={generatePackageJson}
-                             className="flex-1 flex items-center justify-center p-3 rounded-lg border border-slate-600 bg-slate-700 hover:bg-slate-600 transition-colors"
-                        >
-                            <FileJson className="w-4 h-4 mr-2 text-yellow-400" />
-                            <span className="font-bold text-sm">package.json</span>
+                        <button onClick={generatePackageJson} className="flex-1 flex items-center justify-center p-3 rounded-lg border border-slate-600 bg-slate-700 hover:bg-slate-600 transition-colors">
+                            <FileJson className="w-4 h-4 mr-2 text-yellow-400" /> <span className="font-bold text-sm">package.json</span>
                         </button>
                     </div>
                 </div>
 
-                {/* 2. Connection Link Section */}
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 relative overflow-hidden">
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                     <h3 className="text-lg font-bold mb-4 flex items-center text-slate-900">
-                        <LinkIcon className="w-5 h-5 mr-2 text-emerald-600" />
-                        Connetti Dashboard
+                        <LinkIcon className="w-5 h-5 mr-2 text-emerald-600" /> Connetti Dashboard
                     </h3>
-                    <p className="text-sm text-slate-500 mb-4">
-                        Inserisci qui l'URL fornito da Render (es. <code>https://my-bot.onrender.com</code>). 
-                    </p>
-                    
                     <div className="flex gap-2">
                         <input 
                             type="text" 
-                            placeholder="https://..."
+                            placeholder="https://my-bot.onrender.com"
                             value={serverUrl}
                             onChange={(e) => handleUrlChange(e.target.value)}
-                            className={`flex-1 px-4 py-2 border rounded-lg text-sm ${!serverUrl && isDirty ? 'border-amber-300 bg-amber-50' : 'border-slate-300'}`}
+                            className="flex-1 px-4 py-2 border rounded-lg text-sm border-slate-300"
                         />
-                        <button
-                            onClick={handleDeploy}
-                            disabled={isDeploying}
-                            className={`px-6 py-2 rounded-lg font-bold text-white flex items-center ${isDirty ? 'bg-emerald-600 hover:bg-emerald-700 shadow-md' : 'bg-slate-400 cursor-not-allowed'}`}
-                        >
-                            {isDeploying ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : <Save className="w-4 h-4 mr-2"/>}
-                            {isDirty ? 'AGGIORNA SERVER' : 'SINCRONIZZATO'}
+                        <button onClick={handleDeploy} disabled={isDeploying} className={`px-6 py-2 rounded-lg font-bold text-white flex items-center ${isDirty ? 'bg-emerald-600 hover:bg-emerald-700 shadow-md' : 'bg-slate-400 cursor-not-allowed'}`}>
+                            {isDeploying ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : <Save className="w-4 h-4 mr-2"/>} AGGIORNA SERVER
                         </button>
                     </div>
-                    {deployStatus === 'success' && <p className="text-emerald-600 text-[10px] mt-2 font-bold uppercase tracking-tight">✓ Sincronizzato con successo!</p>}
-                    {deployStatus === 'error' && <p className="text-red-500 text-[10px] mt-2 font-bold uppercase tracking-tight">⚠️ Errore: {errorMessage}</p>}
+                    {deployStatus === 'success' && <p className="text-emerald-600 text-xs mt-2 font-bold uppercase tracking-tight">✓ Sincronizzato con successo!</p>}
+                    {deployStatus === 'error' && <p className="text-red-500 text-xs mt-2 font-bold uppercase tracking-tight">⚠️ Errore: {errorMessage}</p>}
                 </div>
             </div>
 
-            {/* Right Column: Settings & Params */}
             <div className="space-y-6">
-                
-                {/* AI Params */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                   <h3 className="font-bold text-slate-900 mb-4">Parametri AI</h3>
+                   <h3 className="font-bold text-slate-900 mb-4">Parametri IA</h3>
                    <div className="mb-2">
                       <div className="flex justify-between items-center mb-3">
                         <label className="text-sm font-medium text-slate-700">Creatività</label>
