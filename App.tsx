@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ConfigScreen } from './components/ConfigScreen';
@@ -10,7 +9,8 @@ import { BotAccount, DEFAULT_INSTRUCTION, User } from './types';
 import { initChatSession } from './services/geminiService';
 import { authService } from './services/authService';
 import { supabaseService } from './services/supabaseService';
-import { X } from 'lucide-react';
+import { X, AlertCircle, RefreshCw } from 'lucide-react';
+import { BRANDING } from './constants';
 
 const App: React.FC = () => {
   // Auth State
@@ -19,6 +19,7 @@ const App: React.FC = () => {
   
   // Database State
   const [isDbLoading, setIsDbLoading] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
   const [showDbSettings, setShowDbSettings] = useState(false);
 
   // App State
@@ -33,7 +34,6 @@ const App: React.FC = () => {
     const user = authService.getCurrentUser();
     if (user) {
       setCurrentUser(user);
-      // Init DB with defaults immediately
       supabaseService.init();
       loadCloudNodes();
     }
@@ -43,20 +43,23 @@ const App: React.FC = () => {
   // 2. Load Accounts from Cloud
   const loadCloudNodes = async () => {
     setIsDbLoading(true);
+    setDbError(null);
     try {
-        const token = "ALEASISTEMI1409"; 
-        const nodes = await supabaseService.loadNodes(token);
-        setAccounts(nodes);
-    } catch (e) {
+        const nodes = await supabaseService.loadNodes(BRANDING.masterToken);
+        if (nodes) {
+            setAccounts(nodes);
+        }
+    } catch (e: any) {
         console.error("Cloud Load Error", e);
-        // Fallback or empty
-        setAccounts([]);
+        // Sniper: Invece di setAccounts([]), manteniamo gli ultimi caricati 
+        // e informiamo l'utente dell'errore di sincronizzazione.
+        setDbError("Errore sincronizzazione Cloud. I dati potrebbero non essere aggiornati.");
     } finally {
         setIsDbLoading(false);
     }
   };
 
-  // 3. Gemini Init (Existing Logic)
+  // 3. Gemini Init
   useEffect(() => {
     if (selectedAccount && selectedAccount.isActive && selectedAccount.status === 'connected') {
       initChatSession(selectedAccount.config);
@@ -67,7 +70,6 @@ const App: React.FC = () => {
 
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
-    // Init DB immediately after login
     supabaseService.init();
     loadCloudNodes();
   };
@@ -84,7 +86,6 @@ const App: React.FC = () => {
       loadCloudNodes();
   };
 
-  // Helper to generate PlanifyX style Instance ID
   const generateInstanceId = () => {
     return Array.from({length: 13}, () => Math.floor(Math.random() * 16).toString(16)).join('').toUpperCase();
   };
@@ -109,28 +110,19 @@ const App: React.FC = () => {
       }
     };
 
-    // Optimistic UI Update
-    setAccounts([...accounts, newAccount]);
-    setSelectedAccountId(newAccount.id);
-
-    // Cloud Save
-    await supabaseService.saveNode("ALEASISTEMI1409", newAccount);
+    setAccounts(prev => [...prev, newAccount]);
+    await supabaseService.saveNode(BRANDING.masterToken, newAccount);
   };
 
   const handleUpdateAccount = async (updatedAccount: BotAccount) => {
-    // Optimistic
     setAccounts(prev => prev.map(acc => acc.id === updatedAccount.id ? updatedAccount : acc));
-    
-    // Cloud Save
-    await supabaseService.saveNode("ALEASISTEMI1409", updatedAccount);
+    await supabaseService.saveNode(BRANDING.masterToken, updatedAccount);
   };
 
   const handleDeleteAccount = async (id: string) => {
-    // Optimistic
+    if (!confirm("Eliminare definitivamente dal Cloud?")) return;
     setAccounts(prev => prev.filter(acc => acc.id !== id));
     if (selectedAccountId === id) setSelectedAccountId(null);
-
-    // Cloud Delete
     await supabaseService.deleteNode(id);
   };
 
@@ -148,16 +140,12 @@ const App: React.FC = () => {
     setActiveTab(tab);
   };
 
-  // --- Render ---
+  if (isAuthChecking) return <div className="flex h-screen items-center justify-center bg-slate-900 text-white font-bold tracking-tight">Inizializzazione Sistema...</div>;
 
-  if (isAuthChecking) return <div className="flex h-screen items-center justify-center bg-slate-900 text-white">Caricamento SaaS...</div>;
-
-  // 1. Auth Check
   if (!currentUser) {
     return <AuthScreen onLoginSuccess={handleLoginSuccess} />;
   }
 
-  // 2. Main App
   return (
     <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans text-slate-800">
       <Sidebar 
@@ -170,6 +158,22 @@ const App: React.FC = () => {
       />
       
       <main className="flex-1 h-full relative overflow-hidden flex flex-col">
+        {dbError && (
+          <div className="bg-amber-500 text-white px-4 py-2 flex justify-between items-center text-xs font-bold z-50">
+            <div className="flex items-center">
+              <AlertCircle className="w-4 h-4 mr-2" />
+              {dbError}
+            </div>
+            <button 
+              onClick={loadCloudNodes} 
+              className="bg-white/20 px-2 py-1 rounded hover:bg-white/30 transition-colors flex items-center"
+            >
+              <RefreshCw className="w-3 h-3 mr-1" />
+              Riprova Sync
+            </button>
+          </div>
+        )}
+
         {activeTab === 'accounts' && (
           <AccountDashboard 
             accounts={accounts}
@@ -199,7 +203,7 @@ const App: React.FC = () => {
                 <div className="relative w-full max-w-2xl">
                     <button 
                         onClick={() => setShowDbSettings(false)}
-                        className="absolute -top-4 -right-4 bg-white rounded-full p-2 hover:bg-slate-100 z-50 shadow-lg"
+                        className="absolute -top-4 -right-4 bg-white rounded-full p-2 hover:bg-slate-100 z-50 shadow-lg transition-transform hover:scale-110"
                     >
                         <X className="w-5 h-5" />
                     </button>
