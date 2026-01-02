@@ -7,31 +7,18 @@ let currentConfig: SupabaseConfig | null = null;
 
 export const supabaseService = {
   
-  // Inizializza il client
   init: (url?: string, key?: string) => {
     try {
-      let targetUrl = url;
-      let targetKey = key;
-
-      if (!targetUrl || !targetKey) {
-          const saved = localStorage.getItem('supabase_config');
-          if (saved) {
-              const parsed = JSON.parse(saved);
-              targetUrl = parsed.url;
-              targetKey = parsed.key;
-          }
-      }
-
-      // Fallback to Constants
-      if (!targetUrl || !targetKey) {
-          targetUrl = SUPABASE_DEFAULTS.url;
-          targetKey = SUPABASE_DEFAULTS.key;
-      }
+      let targetUrl = url || localStorage.getItem('supabase_url') || SUPABASE_DEFAULTS.url;
+      let targetKey = key || localStorage.getItem('supabase_key') || SUPABASE_DEFAULTS.key;
 
       if (!targetUrl || !targetKey) return false;
 
       supabase = createClient(targetUrl, targetKey);
       currentConfig = { url: targetUrl, key: targetKey };
+      
+      localStorage.setItem('supabase_url', targetUrl);
+      localStorage.setItem('supabase_key', targetKey);
       
       return true;
     } catch (e) {
@@ -41,11 +28,6 @@ export const supabaseService = {
   },
 
   getCurrentConfig: () => currentConfig || { url: SUPABASE_DEFAULTS.url, key: SUPABASE_DEFAULTS.key },
-
-  resetToDefault: () => {
-      localStorage.removeItem('supabase_config');
-      return supabaseService.init(SUPABASE_DEFAULTS.url, SUPABASE_DEFAULTS.key);
-  },
 
   isConfigured: () => !!supabase,
 
@@ -61,8 +43,7 @@ export const supabaseService = {
       .eq('user_token', userToken);
       
     if (error) {
-      console.error("Supabase load error:", error.message);
-      throw new Error(error.message); // Sniper: lanciamo l'errore invece di gestire array vuoti qui
+      throw new Error(error.message);
     }
 
     if (!data) return [];
@@ -78,26 +59,19 @@ export const supabaseService = {
 
   saveNode: async (userToken: string, account: BotAccount) => {
     if (!supabase) return;
-    
-    const { error } = await supabase
-      .from('bot_nodes')
-      .upsert({ 
+    try {
+      await supabase.from('bot_nodes').upsert({ 
           id: account.id,
           user_token: userToken,
           data: account
       });
-      
-    if (error) console.error("Save Error", error);
+    } catch (e) {}
   },
 
   deleteNode: async (id: string) => {
     if (!supabase) return;
-
-    const { error } = await supabase
-      .from('bot_nodes')
-      .delete()
-      .eq('id', id);
-
-    if (error) console.error("Delete Error", error);
+    try {
+      await supabase.from('bot_nodes').delete().eq('id', id);
+    } catch (e) {}
   }
 };
