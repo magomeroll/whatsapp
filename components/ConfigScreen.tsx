@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { BotAccount, DEFAULT_INSTRUCTION } from '../types';
 import { Save, RefreshCw, ChevronDown, Check, Smartphone, Cloud, UploadCloud, Loader2, Power, Key, ExternalLink, ShieldAlert, Eye, EyeOff, HelpCircle, X, Server, FileUp, Globe, MonitorOff, Download, FileJson, FileCode, Terminal, Link as LinkIcon, Zap, Trash2, Cpu, Settings, Box, Github } from 'lucide-react';
@@ -84,7 +83,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
             body: JSON.stringify({
                 systemInstruction: localConfig.systemInstruction,
                 temperature: localConfig.temperature,
-                isActive: isActive // V14: Sync Active State
+                isActive: isActive 
             })
         });
 
@@ -119,7 +118,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
     }
   };
 
-  // --- GENERATION LOGIC FOR REAL SERVER CODE (V17 STABILITY) ---
+  // --- GENERATION LOGIC FOR REAL SERVER CODE (V17.1 SNIPER) ---
   const downloadFile = (filename: string, content: string) => {
     const element = document.createElement('a');
     const file = new Blob([content], {type: 'text/plain'});
@@ -131,11 +130,10 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
   };
 
   const generatePackageJson = () => {
-    // V17: Same dependencies
     const pkg = {
       "name": "whatsapp-bot-v17-stable",
-      "version": "17.0.0",
-      "description": "Bot WhatsApp V17 (Conflict Fix & Stream Stability)",
+      "version": "17.1.0",
+      "description": "Bot WhatsApp V17.1 (Sniper Core - Conflict Fix)",
       "main": "server.js",
       "scripts": {
         "start": "node server.js"
@@ -146,11 +144,6 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
         "@google/genai": "^1.30.0",
         "pino": "^7.0.0"
       },
-      "overrides": {
-        "eslint-config": "0.0.0",
-        "@whiskeysockets/eslint-config": "0.0.0",
-        "linkifyjs": "^4.0.0"
-      },
       "engines": {
         "node": ">=20.0.0 <21.0.0"
       }
@@ -160,8 +153,9 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
 
   const generateServerJs = () => {
     const content = `/**
- * BOT WA V17.0 - STABILITY & CONFLICT FIX
- * Fixes: Loop on Conflict (440/515), Zombie Sockets, Aggressive Reconnects
+ * BOT WA V17.1 - SNIPER STABILITY
+ * Ottimizzato per Render.com Free Tier.
+ * Fix: Previene il loop di riconnessione aggressiva (errore 440/515).
  */
 
 const http = require('http');
@@ -189,7 +183,7 @@ if (fs.existsSync(CONFIG_FILE)) {
     try {
         const saved = fs.readFileSync(CONFIG_FILE, 'utf8');
         botConfig = { ...botConfig, ...JSON.parse(saved) };
-    } catch(e) { console.error("Config load error", e); }
+    } catch(e) {}
 }
 
 function saveConfig() {
@@ -198,12 +192,11 @@ function saveConfig() {
 
 // Global State
 let qrCodeDataUrl = '';
-let statusMessage = 'Avvio V17 Stability...';
+let statusMessage = 'Avvio V17.1 Sniper...';
 let isConnected = false;
 let logs = [];
 let ai = null;
 let sock = null; 
-let reconnectAttempts = 0;
 
 function addLog(msg) {
     const time = new Date().toLocaleTimeString();
@@ -215,11 +208,10 @@ function addLog(msg) {
 function initAI() {
     if(botConfig.apiKey) {
         try {
+            // Sniper: Corretto utilizzo del costruttore GoogleGenAI
             ai = new GoogleGenAI({ apiKey: botConfig.apiKey });
             addLog("AI: Pronta");
         } catch(e) { addLog("AI Errore: " + e.message); }
-    } else {
-        addLog("AI: Manca API Key (Verifica Env Var)");
     }
 }
 initAI();
@@ -232,20 +224,17 @@ const server = http.createServer((req, res) => {
 
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-    // API: GET QR Status
     if (req.url === '/api/qr') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ 
             qr: isConnected ? null : qrCodeDataUrl, 
             status: isConnected ? 'CONNECTED' : (qrCodeDataUrl ? 'SCAN_NEEDED' : 'INITIALIZING'),
-            instanceId: "${account.instanceId}",
-            logs: logs.slice(0, 10),
+            logs: logs.slice(0, 5),
             isActive: botConfig.isActive
         }));
         return;
     }
 
-    // API: Update Config 
     if (req.url === '/api/update-config' && req.method === 'POST') {
         let body = '';
         req.on('data', c => body += c);
@@ -255,10 +244,9 @@ const server = http.createServer((req, res) => {
                 if(data.systemInstruction) botConfig.systemInstruction = data.systemInstruction;
                 if(data.temperature !== undefined) botConfig.temperature = data.temperature;
                 if(data.isActive !== undefined) botConfig.isActive = data.isActive; 
-                
                 saveConfig();
                 initAI();
-                addLog(\`Config aggiornata. Bot Attivo: \${botConfig.isActive}\`);
+                addLog(\`Config aggiornata via Cloud\`);
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: true }));
             } catch(e) { res.writeHead(400); res.end(); }
@@ -266,40 +254,20 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // API: Force Reset / Logout
     if (req.url === '/api/logout' && req.method === 'POST') {
-        addLog(">>> HARD RESET RICHIESTO DA DASHBOARD <<<");
         try {
             if(sock) { sock.end(undefined); sock = null; }
-            if(fs.existsSync(AUTH_DIR)) {
-                fs.rmSync(AUTH_DIR, { recursive: true, force: true });
-                addLog("File sessione eliminati fisicamente.");
-            }
-            isConnected = false;
-            qrCodeDataUrl = '';
-            statusMessage = "RESET COMPLETO";
+            if(fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+            isConnected = false; qrCodeDataUrl = '';
             setTimeout(startBaileys, 3000);
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: true }));
-        } catch(e) {
-            addLog("Errore Reset: " + e.message);
-            res.writeHead(500); res.end();
-        }
+        } catch(e) { res.writeHead(500); res.end(); }
         return;
     }
 
-    // Status Page
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(\`<html><body style="font-family:sans-serif;background:#1e1e1e;color:#fff;text-align:center;padding:50px;">
-        <div style="background:#2d2d2d;padding:30px;border-radius:15px;max-width:600px;margin:auto;border-top:5px solid #00a884;box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-            <h1 style="color:#00a884;">Bot V17 Stability</h1>
-            <p>Status: <strong>\${isConnected ? '✅ CONNESSO' : '⚠️ ' + statusMessage}</strong></p>
-            <p>Mode: <strong>\${botConfig.isActive ? '🟢 ATTIVO' : '🔴 IN PAUSA'}</strong></p>
-            <div style="background:#000;padding:15px;border-radius:8px;font-family:monospace;text-align:left;font-size:12px;color:#00a884;max-height:300px;overflow-y:auto;">
-               \${logs.join('<br>')}
-            </div>
-        </div>
-    </body></html>\`);
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(\`<h1>Bot V17.1 Stable</h1><p>Status: \${isConnected ? 'CONNESSO' : statusMessage}</p>\`);
 });
 
 server.listen(PORT, () => {
@@ -307,25 +275,10 @@ server.listen(PORT, () => {
     startBaileys();
 });
 
-// --- ANTI-SLEEP (V16/17) ---
-const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL; 
-if (RENDER_EXTERNAL_URL) {
-    addLog(\`Anti-Sleep ATTIVO su: \${RENDER_EXTERNAL_URL}\`);
-    setInterval(() => {
-        addLog("⏰ Anti-Sleep Ping...");
-        https.get(\`\${RENDER_EXTERNAL_URL}/api/qr\`, (res) => {}).on('error', (e) => {});
-    }, 840000); // 14 Minutes
-}
-
-// 2. WHATSAPP LOGIC (V17 Enhanced)
+// 2. WHATSAPP LOGIC (V17.1 Enhanced)
 async function startBaileys() {
-    // FORCE CLEANUP: Ensure no previous socket exists to prevent zombie conflicts
-    if (sock) {
-        try { sock.end(undefined); } catch(e) {}
-        sock = null;
-    }
-
-    addLog("Avvio Motore WhatsApp (V17)...");
+    if (sock) { try { sock.end(undefined); } catch(e) {} sock = null; }
+    addLog("Inizializzazione Baileys...");
     
     try {
         const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
@@ -334,15 +287,10 @@ async function startBaileys() {
         sock = makeWASocket({
             version,
             auth: state,
-            logger: pino({ level: 'silent' }), // Silent pino to reduce log noise on Render
-            browser: ["Chrome (Linux)", "Chrome", "122.0.0"], // Updated Browser signature
+            logger: pino({ level: 'silent' }),
+            browser: ["Chrome (Linux)", "Chrome", "122.0.0"],
             connectTimeoutMs: 60000,
-            keepAliveIntervalMs: 30000,
-            emitOwnEvents: false,
-            retryRequestDelayMs: 5000,
-            syncFullHistory: false, 
-            printQRInTerminal: false,
-            generateHighQualityLinkPreview: true
+            printQRInTerminal: false
         });
 
         sock.ev.on('connection.update', async (update) => {
@@ -350,113 +298,65 @@ async function startBaileys() {
             
             if(qr) {
                 isConnected = false;
-                statusMessage = "SCANSIONA QR";
-                qrcode.toDataURL(qr, (err, url) => {
-                    if(!err) qrCodeDataUrl = url;
-                });
-                addLog("QR Code Rigenerato");
+                qrcode.toDataURL(qr, (err, url) => { if(!err) qrCodeDataUrl = url; });
+                statusMessage = "ATTESA SCANSIONE";
             }
 
             if(connection === 'close') {
                 isConnected = false;
                 qrCodeDataUrl = '';
-                
-                const error = lastDisconnect?.error;
-                const statusCode = error?.output?.statusCode;
-                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-                
-                addLog(\`Disconnesso: \${statusCode || 'Unknown'} - \${error?.message || ''}\`);
+                const statusCode = lastDisconnect?.error?.output?.statusCode;
+                addLog(\`Chiusura Codice: \${statusCode}\`);
 
-                // V17 CONFLICT HANDLING STRATEGY
-                if (statusCode === DisconnectReason.loggedOut) {
-                    addLog("Logout ricevuto. Pulisco sessione e attendo...");
-                    if(fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true });
-                    setTimeout(startBaileys, 5000);
-                } 
-                else if (statusCode === 440 || statusCode === 515 || (error?.message && error.message.includes('conflict'))) {
-                     // CONFLICT DETECTED: Do NOT reconnect immediately. 
-                     // This prevents the loop: Connect -> Kick -> Connect -> Kick
-                     addLog("⚠️ CONFLITTO STREAM (515/440).");
-                     addLog("Attesa 20s per stabilizzazione...");
-                     
+                // SNIPER: Gestione specifica codici critici su Render
+                if (statusCode === 440 || statusCode === 515 || lastDisconnect?.error?.message?.includes('conflict')) {
+                     addLog("⚠️ CONFLITTO RILEVATO. Pausa 15s per stabilità...");
                      if(sock) { try { sock.end(undefined); sock = null; } catch(e) {} }
-                     
-                     // Exponential Backoff for stability
-                     setTimeout(startBaileys, 20000); 
-                }
-                else if (shouldReconnect) {
-                    // Normal Reconnect
+                     setTimeout(startBaileys, 15000); 
+                } else if (statusCode !== DisconnectReason.loggedOut) {
+                    setTimeout(startBaileys, 5000);
+                } else {
+                    addLog("Logout. Pulizia...");
+                    if(fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true });
                     setTimeout(startBaileys, 5000);
                 }
             } else if(connection === 'open') {
-                isConnected = true;
-                reconnectAttempts = 0;
-                qrCodeDataUrl = '';
-                statusMessage = "CONNESSO";
-                addLog(">>> V17 CONNESSO & STABILE <<<");
+                isConnected = true; qrCodeDataUrl = ''; statusMessage = "CONNESSO";
+                addLog(">>> BOT ONLINE <<<");
             }
         });
 
         sock.ev.on('creds.update', saveCreds);
 
         sock.ev.on('messages.upsert', async ({ messages, type }) => {
-            if(type !== 'notify') return;
-            if(!botConfig.isActive) return;
-
+            if(type !== 'notify' || !botConfig.isActive) return;
             for(const msg of messages) {
                 if(!msg.message || msg.key.fromMe) continue;
-                // Ignore status updates
-                if(msg.key.remoteJid === 'status@broadcast') continue;
-
                 const remoteJid = msg.key.remoteJid;
                 const textBody = msg.message.conversation || msg.message.extendedTextMessage?.text;
-                
-                if(!textBody) continue;
-                addLog(\`Msg da \${remoteJid.slice(0,4)}...: \${textBody.substring(0, 10)}...\`);
-
+                if(!textBody || !ai) continue;
                 try {
-                    if(ai) {
-                        await sock.readMessages([msg.key]);
-                        // Simulate human delay
-                        await delay(1500); 
-                        
-                        const response = await ai.models.generateContent({
-                            model: 'gemini-2.5-flash',
-                            contents: textBody,
-                            config: { 
-                                systemInstruction: botConfig.systemInstruction,
-                                temperature: botConfig.temperature 
-                            }
-                        });
-                        
-                        const replyText = response.text;
-                        await sock.sendMessage(remoteJid, { text: replyText }, { quoted: msg });
-                        addLog("Risposta inviata");
-                    }
-                } catch (e) {
-                    addLog("Errore AI: " + e.message);
-                }
+                    await sock.readMessages([msg.key]);
+                    await delay(1000);
+                    // Sniper: Uso del modello corretto gemini-3-flash-preview
+                    const response = await ai.models.generateContent({
+                        model: 'gemini-3-flash-preview',
+                        contents: textBody,
+                        config: { systemInstruction: botConfig.systemInstruction, temperature: botConfig.temperature }
+                    });
+                    await sock.sendMessage(remoteJid, { text: response.text }, { quoted: msg });
+                } catch (e) { addLog("Errore AI: " + e.message); }
             }
         });
 
     } catch (e) {
-        addLog("CRASH STARTUP: " + e.message);
+        addLog("Errore: " + e.message);
         setTimeout(startBaileys, 10000);
     }
 }
-
-// Global Error Handlers to prevent container crash
-process.on('uncaughtException', (err) => {
-    console.error('UNCAUGHT EXCEPTION:', err);
-    // Do not exit, just log. This keeps the http server alive.
-});
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('UNHANDLED REJECTION:', reason);
-});
 `;
     downloadFile('server.js', content);
   };
-  // ---------------------------------------------
 
   return (
     <div className="flex-1 bg-slate-50 h-full overflow-y-auto p-4 md:p-8" onClick={() => setIsDropdownOpen(false)}>
@@ -565,7 +465,7 @@ process.on('unhandledRejection', (reason, promise) => {
                     value={localConfig.systemInstruction}
                     onChange={(e) => handleConfigChange('systemInstruction', e.target.value)}
                     className="flex-1 w-full px-6 py-5 resize-none outline-none text-slate-700 font-mono text-sm leading-relaxed"
-                    placeholder="Scrivi qui le istruzioni per il tuo bot. Esempio: Sei un assistente per una pizzeria. Accetta prenotazioni solo se..."
+                    placeholder="Scrivi qui le istruzioni per il tuo bot..."
                   />
 
                   <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-400 flex justify-between">
@@ -581,10 +481,10 @@ process.on('unhandledRejection', (reason, promise) => {
                     </div>
                     <h3 className="text-lg font-bold mb-2 flex items-center text-emerald-100">
                         <Download className="w-5 h-5 mr-2" />
-                        Download Server V17 (Stable)
+                        Download Server V17.1 (Sniper)
                     </h3>
                     <p className="text-emerald-100/80 text-sm mb-6 max-w-xl">
-                        Versione 17.0: Fix "Conflict Loop". Risolve il problema delle disconnessioni continue e migliora la stabilità su Render.
+                        Versione 17.1: Sniper Stability. Ottimizzata per Render Free Tier per prevenire sospensioni dell'account causate da loop di crash.
                     </p>
 
                     <div className="flex flex-col sm:flex-row gap-3 relative z-10">
@@ -593,7 +493,7 @@ process.on('unhandledRejection', (reason, promise) => {
                             className={`flex-1 flex items-center justify-center p-3 rounded-lg border border-emerald-400 bg-emerald-900/40 hover:bg-emerald-800/60 transition-colors`}
                         >
                             <FileCode className="w-4 h-4 mr-2 text-emerald-300" />
-                            <span className="font-bold text-sm">server.js (V17)</span>
+                            <span className="font-bold text-sm">server.js (V17.1)</span>
                         </button>
                         
                         <button 
@@ -624,25 +524,26 @@ process.on('unhandledRejection', (reason, promise) => {
                             onChange={(e) => handleUrlChange(e.target.value)}
                             className={`flex-1 px-4 py-2 border rounded-lg text-sm ${!serverUrl && isDirty ? 'border-amber-300 bg-amber-50' : 'border-slate-300'}`}
                         />
-                        <a 
-                            href={serverUrl || '#'}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => !serverUrl && e.preventDefault()}
-                            className={`px-6 py-2 rounded-lg font-bold text-white flex items-center ${serverUrl ? 'bg-slate-700 hover:bg-slate-800' : 'bg-slate-300 cursor-not-allowed'}`}
+                        <button
+                            onClick={handleDeploy}
+                            disabled={isDeploying}
+                            className={`px-6 py-2 rounded-lg font-bold text-white flex items-center ${isDirty ? 'bg-emerald-600 hover:bg-emerald-700 shadow-md' : 'bg-slate-400 cursor-not-allowed'}`}
                         >
-                            TEST URL <ExternalLink className="w-4 h-4 ml-2" />
-                        </a>
+                            {isDeploying ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : <Save className="w-4 h-4 mr-2"/>}
+                            {isDirty ? 'AGGIORNA SERVER' : 'SINCRONIZZATO'}
+                        </button>
                     </div>
+                    {deployStatus === 'success' && <p className="text-emerald-600 text-[10px] mt-2 font-bold uppercase tracking-tight">✓ Sincronizzato con successo!</p>}
+                    {deployStatus === 'error' && <p className="text-red-500 text-[10px] mt-2 font-bold uppercase tracking-tight">⚠️ Errore: {errorMessage}</p>}
                 </div>
             </div>
 
-            {/* Right Column: Settings & Key */}
+            {/* Right Column: Settings & Params */}
             <div className="space-y-6">
                 
                 {/* AI Params */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                   <h3 className="font-bold text-slate-900 mb-4">Parametri Comportamento</h3>
+                   <h3 className="font-bold text-slate-900 mb-4">Parametri AI</h3>
                    <div className="mb-2">
                       <div className="flex justify-between items-center mb-3">
                         <label className="text-sm font-medium text-slate-700">Creatività</label>
@@ -658,124 +559,9 @@ process.on('unhandledRejection', (reason, promise) => {
                         className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#00a884]"
                       />
                    </div>
-                   
-                   <div className="mt-6 pt-6 border-t border-slate-100">
-                        <label className="flex items-center justify-between cursor-pointer group">
-                            <div>
-                                <div className="text-sm font-bold text-slate-800">Stato Operativo</div>
-                                <div className="text-xs text-slate-500">Metti in pausa le risposte</div>
-                            </div>
-                            <div 
-                                onClick={() => handleIsActiveChange(!isActive)}
-                                className={`w-12 h-6 rounded-full p-1 transition-all duration-300 ${isActive ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                            >
-                                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-300 ${isActive ? 'translate-x-6' : 'translate-x-0'}`}></div>
-                            </div>
-                        </label>
-                   </div>
-                </div>
-
-                <div className="pt-4 sticky bottom-4">
-                  {/* Status Messages */}
-                  {deployStatus === 'error' && (
-                      <div className="mb-3 bg-red-50 text-red-700 p-3 rounded-lg text-xs border border-red-100 flex items-start">
-                          <ShieldAlert className="w-4 h-4 mr-2 shrink-0" />
-                          {errorMessage}
-                      </div>
-                  )}
-                  {deployStatus === 'success' && (
-                      <div className="mb-3 bg-emerald-50 text-emerald-700 p-3 rounded-lg text-xs border border-emerald-100 flex items-center">
-                          <Check className="w-4 h-4 mr-2" />
-                          Configurazione inviata al server con successo!
-                      </div>
-                  )}
-
-                  <button
-                    onClick={handleDeploy}
-                    disabled={(!isDirty && deployStatus !== 'error') || isDeploying}
-                    className={`w-full flex items-center justify-center py-4 px-4 rounded-xl font-bold text-white transition-all shadow-lg transform active:scale-95 border-b-4 ${
-                      isDirty || deployStatus === 'error'
-                        ? 'bg-[#00a884] hover:bg-[#008f6f] border-[#007a5e] shadow-emerald-200' 
-                        : 'bg-slate-300 border-slate-400 cursor-not-allowed shadow-none text-slate-500'
-                    }`}
-                  >
-                    {isDeploying ? (
-                        <>
-                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                            Sincronizzazione...
-                        </>
-                    ) : (
-                        <>
-                            <UploadCloud className="w-5 h-5 mr-2" />
-                            {isDirty ? 'Aggiorna Server' : 'Sincronizzato'}
-                        </>
-                    )}
-                  </button>
-                  {!serverUrl && (
-                      <p className="text-center text-[10px] text-slate-400 mt-2">
-                          *URL Server non impostato. Salvataggio solo locale.
-                      </p>
-                  )}
                 </div>
             </div>
         </div>
-
-        {/* Modal Guida RENDER.COM */}
-        {showRenderGuide && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-0 overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]">
-              <div className="bg-slate-900 p-6 text-white flex justify-between items-center shrink-0">
-                  <div className="flex items-center space-x-3">
-                     <div className="bg-white/20 p-2 rounded-lg">
-                        <Cloud className="w-6 h-6 text-white" />
-                     </div>
-                     <div>
-                        <h2 className="text-xl font-bold">Guida Render.com (Gratis)</h2>
-                        <p className="text-slate-300 text-sm">Deploy Rapido e Sicuro</p>
-                     </div>
-                  </div>
-                  <button onClick={() => setShowRenderGuide(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors">
-                     <X className="w-5 h-5" />
-                  </button>
-              </div>
-              
-              <div className="p-8 overflow-y-auto space-y-4 text-sm text-slate-600">
-                 
-                 <div className="bg-slate-100 p-4 rounded-lg border border-slate-200">
-                    <h4 className="font-bold text-slate-800 mb-2">1. Prepara i file</h4>
-                    <ul className="list-disc list-inside space-y-1">
-                        <li>Scarica <code>server.js</code> (V17) e <code>package.json</code> da qui.</li>
-                        <li>Carica questi 2 file nel tuo Repository GitHub.</li>
-                    </ul>
-                 </div>
-
-                 <div className="bg-slate-100 p-4 rounded-lg border border-slate-200">
-                    <h4 className="font-bold text-slate-800 mb-2">2. Deploy su Render</h4>
-                    <ul className="list-disc list-inside space-y-1">
-                        <li>Vai su <a href="https://render.com" target="_blank" className="text-blue-600 underline">Render.com</a> Dashboard.</li>
-                        <li>Seleziona il progetto.</li>
-                        <li>Clicca <strong>Manual Deploy &rarr; Clear Build Cache & Deploy</strong>.</li>
-                        <li>(Questo è necessario per pulire i file corrotti delle versioni precedenti).</li>
-                    </ul>
-                 </div>
-                 
-                 <p className="font-bold text-emerald-600">
-                     Il server dovrebbe tornare operativo in 2-3 minuti.
-                 </p>
-              </div>
-              
-              <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
-                 <button 
-                    onClick={() => setShowRenderGuide(false)}
-                    className="px-6 py-2 bg-slate-900 text-white rounded-lg font-bold hover:bg-slate-800 transition-colors"
-                 >
-                    Ho Capito
-                 </button>
-              </div>
-            </div>
-          </div>
-        )}
-
       </div>
     </div>
   );
