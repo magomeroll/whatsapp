@@ -106,9 +106,9 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
 
   const generatePackageJson = () => {
     const pkg = {
-      "name": "whatsapp-bot-v17-immortal",
-      "version": "17.3.0",
-      "description": "Bot WhatsApp V17.3 Sniper (Anti-Sleep Mode)",
+      "name": "whatsapp-bot-v17-rocksolid",
+      "version": "17.4.0",
+      "description": "Bot WhatsApp V17.4 (Anti-Crash & Anti-Sleep)",
       "main": "server.js",
       "scripts": { "start": "node server.js" },
       "dependencies": {
@@ -124,9 +124,9 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ account, allAccounts
 
   const generateServerJs = () => {
     const content = `/**
- * BOT WA V17.3 - SNIPER IMMORTAL
+ * BOT WA V17.4 - ROCK SOLID (Anti-Status 1)
  * Ottimizzato per Render.com Free Tier.
- * Fix: Anti-Sleep (Self-Ping) + Reconnect Pro.
+ * Fix: Global Exception Handlers + Potentiometer keepAlive.
  */
 const http = require('http');
 const https = require('https');
@@ -137,10 +137,18 @@ const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
 
+// --- ANTI-CRASH SYSTEM (Previene Status 1) ---
+process.on('uncaughtException', (err) => {
+    console.error('CRITICAL ERROR:', err);
+    // Non usciamo, lasciamo che Baileys provi a riconnettersi
+});
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('UNHANDLED REJECTION:', reason);
+});
+
 const PORT = process.env.PORT || 10000;
 const AUTH_DIR = path.join(__dirname, 'auth_info_v17');
 const CONFIG_FILE = path.join(__dirname, 'bot_config.json');
-const SERVER_URL = process.env.RENDER_EXTERNAL_URL || ''; 
 
 let botConfig = {
     apiKey: process.env.API_KEY,
@@ -159,7 +167,7 @@ if (fs.existsSync(CONFIG_FILE)) {
 function saveConfig() { fs.writeFileSync(CONFIG_FILE, JSON.stringify(botConfig, null, 2)); }
 
 let qrCodeDataUrl = '';
-let statusMessage = 'Inizializzazione V17.3...';
+let statusMessage = 'Avvio V17.4...';
 let isConnected = false;
 let logs = [];
 let ai = null;
@@ -168,21 +176,22 @@ let sock = null;
 function addLog(msg) {
     const time = new Date().toLocaleTimeString();
     logs.unshift(\`[\${time}] \${msg}\`);
-    if(logs.length > 30) logs.pop();
+    if(logs.length > 20) logs.pop();
     console.log(msg);
 }
 
-// SNIPER FIX: Anti-Sleep System
-function keepAlive() {
-    if (!SERVER_URL) return;
+// ANTI-SLEEP POTENZIATO
+function keepAlive(url) {
+    if (!url) return;
+    const cleanUrl = url.startsWith('http') ? url : \`https://\${url}\`;
     setInterval(() => {
-        addLog("Pinging self to stay awake...");
-        https.get(SERVER_URL, (res) => {
-            // Self-ping ok
+        addLog("Self-Ping: Keeping process alive...");
+        https.get(cleanUrl, (res) => {
+            // Success
         }).on('error', (e) => {
-            // Silenzioso
+            // Ignore error, we just want to keep event loop busy
         });
-    }, 10 * 60 * 1000); // Ogni 10 minuti
+    }, 10 * 60 * 1000); 
 }
 
 function initAI() {
@@ -245,12 +254,14 @@ const server = http.createServer((req, res) => {
     }
 
     res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(\`<h1>Bot V17.3 Sniper</h1><p>Status: \${isConnected ? 'ONLINE' : 'OFFLINE/QR'}</p>\`);
+    res.end(\`<h1>Bot V17.4 RockSolid</h1><p>Status: \${isConnected ? 'ONLINE' : 'SCAN QR'}</p>\`);
 });
 
 server.listen(PORT, () => {
     addLog(\`WEB SERVER OK PORT:\${PORT}\`);
-    keepAlive();
+    // Prova a recuperare l'URL esterno di Render
+    const renderUrl = process.env.RENDER_EXTERNAL_URL;
+    if(renderUrl) keepAlive(renderUrl);
     startBaileys();
 });
 
@@ -265,7 +276,6 @@ async function startBaileys() {
             version,
             auth: state,
             logger: pino({ level: 'silent' }),
-            // Ripristino Browser ID V17 (Stabile)
             browser: ["Chrome (Linux)", "Chrome", "122.0.0"],
             connectTimeoutMs: 60000,
             printQRInTerminal: false
@@ -280,22 +290,20 @@ async function startBaileys() {
             }
             if(connection === 'close') {
                 const statusCode = lastDisconnect?.error?.output?.statusCode;
-                addLog(\`Disconnected: \${statusCode}\`);
+                addLog(\`Disco: \${statusCode}\`);
                 
-                // Sniper V17.3: Delay intelligente
                 if (statusCode === 440 || statusCode === 515 || lastDisconnect?.error?.message?.includes('conflict')) {
-                     addLog("Conflitto. Pausa 20s...");
-                     setTimeout(startBaileys, 20000); 
+                     setTimeout(startBaileys, 15000); 
                 } else if (statusCode !== DisconnectReason.loggedOut) {
                     setTimeout(startBaileys, 5000);
                 } else {
-                    addLog("Logout. Resetting...");
+                    addLog("Logout. Cleanup...");
                     if(fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true });
                     setTimeout(startBaileys, 5000);
                 }
             } else if(connection === 'open') {
                 isConnected = true; qrCodeDataUrl = ''; statusMessage = "CONNECTED";
-                addLog(">>> BOT ONLINE (Immortal Mode) <<<");
+                addLog(">>> BOT ONLINE <<<");
             }
         });
 
@@ -321,7 +329,7 @@ async function startBaileys() {
             }
         });
     } catch (e) {
-        addLog("Startup Error: " + e.message);
+        addLog("Loop Error: " + e.message);
         setTimeout(startBaileys, 10000);
     }
 }
@@ -408,14 +416,14 @@ async function startBaileys() {
 
                 <div className="bg-gradient-to-br from-[#00a884] to-emerald-900 rounded-xl shadow-lg border border-emerald-700 p-6 text-white relative overflow-hidden">
                     <h3 className="text-lg font-bold mb-2 flex items-center text-emerald-100">
-                        <Zap className="w-5 h-5 mr-2" /> Download Server V17.3 (Sniper Immortal)
+                        <Zap className="w-5 h-5 mr-2" /> Download Server V17.4 (Rock Solid)
                     </h3>
                     <p className="text-emerald-100/80 text-sm mb-6 max-w-xl">
-                        Versione 17.3: Include il sistema Anti-Sleep per Render Free. Il bot non andrà più a dormire dopo 15 minuti.
+                        Versione 17.4: Protezione contro gli errori 'Status 1' di Render e sistema di auto-sveglia potenziato per non perdere mai la connessione.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-3 relative z-10">
                         <button onClick={generateServerJs} className="flex-1 flex items-center justify-center p-3 rounded-lg border border-emerald-400 bg-emerald-900/40 hover:bg-emerald-800/60 transition-colors">
-                            <FileCode className="w-4 h-4 mr-2 text-emerald-300" /> <span className="font-bold text-sm">server.js (V17.3)</span>
+                            <FileCode className="w-4 h-4 mr-2 text-emerald-300" /> <span className="font-bold text-sm">server.js (V17.4)</span>
                         </button>
                         <button onClick={generatePackageJson} className="flex-1 flex items-center justify-center p-3 rounded-lg border border-slate-600 bg-slate-700 hover:bg-slate-600 transition-colors">
                             <FileJson className="w-4 h-4 mr-2 text-yellow-400" /> <span className="font-bold text-sm">package.json</span>
